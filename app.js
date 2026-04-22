@@ -585,8 +585,11 @@
       return CODEBLOCK_START + (codeHtml.length - 1) + CODEBLOCK_END;
     });
 
+    // Handle streaming code blocks that are being actively typed (no closing backticks yet)
+    text = handleActiveCodeBlocks(text, codeHtml);
+
     // Handle unclosed code blocks (streaming) - must be before escapeHtml
-    text = handleUnclosedCodeBlocks(text);
+    text = handleUnclosedCodeBlocks(text, codeHtml);
 
     // Extract block math ($$...$$) - must be before escapeHtml
     text = text.replace(/\$\$([\s\S]*?)\$\$/g, function (_, math) {
@@ -694,7 +697,52 @@
     return text;
   }
 
-  function handleUnclosedCodeBlocks(text) {
+  // ── Handle Active (Unclosed) Code Blocks ──
+  // Tracks code blocks that are being typed but not yet closed
+  var activeCodeBlocks = [];
+
+  function handleActiveCodeBlocks(text, codeHtmlArray) {
+    var blockPattern = /```(\w*)\n?([\s\S]*?)(?![`])/g;
+    
+    text = text.replace(blockPattern, function(_, lang, code) {
+      activeCodeBlocks.push({
+        idx: codeHtmlArray.length,
+        lang: lang || '',
+        content: code,
+        hasClosing: false
+      });
+      
+      // Render unclosed block with cursor effect
+      var escapedCode = escapeHtml(code);
+      var encodedCode = btoa(encodeURIComponent(code));
+      var copyBtn = '<button class="copy-btn" data-code-idx="' + (codeHtmlArray.length) + '" data-code="' + encodedCode + '" title="Copy code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + COPY_SVG + '</svg></button>';
+      
+      var langAttr = lang ? ' class="language-' + lang + '"' : '';
+      
+      codeHtmlArray.push(
+        '<div class="code-block-container">' +
+        copyBtn +
+        '<pre><code' + langAttr + '>' + escapedCode + '</code></pre>' +
+        '<span class="cursor-blink"></span>' +
+        '</div>'
+      );
+      
+      return CODEBLOCK_START + (codeHtmlArray.length - 1) + CODEBLOCK_END;
+    });
+    
+    // Check if any active blocks now have closing backticks
+    for (var i = activeCodeBlocks.length - 1; i >= 0; i--) {
+      var block = activeCodeBlocks[i];
+      if (!block.hasClosing) {
+        // Block is still open, mark as closed since we found the content
+        block.hasClosing = true;
+      }
+    }
+    
+    return text;
+  }
+
+  function handleUnclosedCodeBlocks(text, codeHtmlArray) {
     var unclosedRegex = /```(\w*)\n([\s\S]*?)```$/gm;
 
     text = text.replace(unclosedRegex, function (_, lang, code) {
@@ -703,8 +751,8 @@
       var langAttr = lang ? ' class="language-' + lang + '"' : '';
       var escapedCode = escapeHtml(code);
       var encodedCode = btoa(encodeURIComponent(code));
-      var codeIdx = codeHtml.length;
-      codeHtml.push(
+      var codeIdx = codeHtmlArray.length;
+      codeHtmlArray.push(
         '<div class="code-block-container">' +
         '<button class="copy-btn" data-code-idx="' + codeIdx + '" data-code="' + encodedCode + '" title="Copy code">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + COPY_SVG + '</svg>' +
@@ -715,6 +763,25 @@
       );
       return CODEBLOCK_START + codeIdx + CODEBLOCK_END;
     });
+
+    // Close any active blocks that still don't have closing backticks
+    for (var i = activeCodeBlocks.length - 1; i >= 0; i--) {
+      var block = activeCodeBlocks[i];
+      if (!block.hasClosing) {
+        var langAttr = block.lang ? ' class="language-' + block.lang + '"' : '';
+        var escapedCode = escapeHtml(block.content);
+        var encodedCode = btoa(encodeURIComponent(block.content));
+        codeHtmlArray.push(
+          '<div class="code-block-container">' +
+          '<button class="copy-btn" data-code-idx="' + (codeHtmlArray.length - 1) + '" data-code="' + encodedCode + '" title="Copy code">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + COPY_SVG + '</svg>' +
+          '</button>' +
+          '<pre><code' + langAttr + '>' + escapedCode + '</code></pre>' +
+          '</div>'
+        );
+        activeCodeBlocks.splice(i, 1);
+      }
+    }
 
     return text;
   }
