@@ -718,6 +718,25 @@ body::before {
 .code-block-container pre {
   margin: 0 !important;
   padding: 16px 48px 16px 16px !important;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.code-block-container pre::-webkit-scrollbar {
+  width: 6px;
+}
+
+.code-block-container pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-block-container pre::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.code-block-container pre::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .copy-btn:hover {
@@ -953,6 +972,8 @@ body::before {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 600px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   line-height: 1.5;
