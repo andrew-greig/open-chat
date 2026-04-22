@@ -53,6 +53,11 @@
   const braveApiKeyInput = document.getElementById('braveApiKey');
   const webSearchToggle = document.getElementById('webSearchToggle');
   const webSearchLoading = document.getElementById('webSearchLoading');
+  const sourcesPill = document.getElementById('sourcesPill');
+  const sourcesPillFavicons = document.getElementById('sourcesPillFavicons');
+  const sourcesOverlay = document.getElementById('sourcesOverlay');
+  const sourcesClose = document.getElementById('sourcesClose');
+  const sourcesList = document.getElementById('sourcesList');
   const modelPillWrapper = document.getElementById('modelPillWrapper');
   const modelPill = document.getElementById('modelPill');
   const modelPillText = document.getElementById('modelPillText');
@@ -78,6 +83,7 @@
   let codeBlocks = [];
   let attachedImage = null;
   let webSearchEnabled = false;
+  let currentSearchResults = [];
 
   // ── SVG Icons (reusable) ──
   const ARROW_SVG = '<polyline points="9 18 15 12 9 6"/>';
@@ -785,10 +791,14 @@
     if (webSearchEnabled && text) {
       webSearchLoading.style.display = 'flex';
       sendBtn.disabled = true;
-      var searchResults = await performWebSearch(text);
+      var searchResult = await performWebSearch(text);
       webSearchLoading.style.display = 'none';
       sendBtn.disabled = false;
-      var augmentedPrompt = 'Context from web search:\n\n' + searchResults + '\n\nUser query: ' + text;
+      currentSearchResults = searchResult.results;
+      if (currentSearchResults.length > 0) {
+        renderSourcesPill(currentSearchResults);
+      }
+      var augmentedPrompt = 'Context from web search:\n\n' + searchResult.formatted + '\n\nUser query: ' + text;
       conversation[conversation.length - 1].content = augmentedPrompt;
     }
 
@@ -948,13 +958,14 @@
     messagesEl.innerHTML = '';
     createEmptyState();
     clearAttachedImage();
+    hideSourcesPill();
   }
 
   // ── Web Search ──
   async function performWebSearch(query) {
     var apiKey = braveApiKeyInput.value;
     if (!apiKey) {
-      return 'Brave Search API key not configured. Please add your API key in settings.';
+      return { formatted: 'Brave Search API key not configured. Please add your API key in settings.', results: [] };
     }
 
     try {
@@ -966,9 +977,9 @@
       var data = await res.json();
       if (!res.ok || data.error) {
         if (res.headers.get('X-Auth-Error')) {
-          return 'Web search failed: Invalid API key. Check your Brave API key in settings.';
+          return { formatted: 'Web search failed: Invalid API key. Check your Brave API key in settings.', results: [] };
         }
-        return 'Web search failed: ' + (data.error || 'Unknown error');
+        return { formatted: 'Web search failed: ' + (data.error || 'Unknown error'), results: [] };
       }
       var results = data.web && data.web.results ? data.web.results : [];
       var topResults = results.slice(0, 5);
@@ -978,10 +989,96 @@
         formatted += '   ' + (r.url || '') + '\n';
         formatted += '   ' + (r.description || '') + '\n\n';
       });
-      return formatted.trim() || 'No results found for "' + query + '".';
+      return {
+        formatted: formatted.trim() || 'No results found for "' + query + '".',
+        results: topResults
+      };
     } catch (e) {
-      return 'Web search error: ' + e.message;
+      return { formatted: 'Web search error: ' + e.message, results: [] };
     }
+  }
+
+  // ── Sources Display ──
+  function getFaviconUrl(url) {
+    try {
+      var parsed = new URL(url);
+      return 'https://www.google.com/s2/favicons?domain=' + parsed.hostname + '&sz=32';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function renderSourcesPill(results) {
+    sourcesPillFavicons.innerHTML = '';
+    var shown = results.slice(0, 5);
+    shown.forEach(function (r) {
+      var faviconUrl = getFaviconUrl(r.url);
+      if (faviconUrl) {
+        var img = document.createElement('img');
+        img.src = faviconUrl;
+        img.className = 'source-favicon';
+        img.alt = '';
+        img.loading = 'lazy';
+        sourcesPillFavicons.appendChild(img);
+      }
+    });
+    sourcesPill.style.display = 'flex';
+  }
+
+  function hideSourcesPill() {
+    sourcesPill.style.display = 'none';
+    currentSearchResults = [];
+  }
+
+  function openSourcesPopup() {
+    sourcesList.innerHTML = '';
+    var shown = currentSearchResults.slice(0, 5);
+    shown.forEach(function (r) {
+      var faviconUrl = getFaviconUrl(r.url);
+      var item = document.createElement('div');
+      item.className = 'source-item';
+
+      var header = document.createElement('div');
+      header.className = 'source-item-header';
+
+      if (faviconUrl) {
+        var favicon = document.createElement('img');
+        favicon.src = faviconUrl;
+        favicon.className = 'source-favicon-lg';
+        favicon.alt = '';
+        favicon.loading = 'lazy';
+        header.appendChild(favicon);
+      }
+
+      var title = document.createElement('span');
+      title.className = 'source-title';
+      title.textContent = r.title || 'Untitled';
+      header.appendChild(title);
+
+      item.appendChild(header);
+
+      var urlLink = document.createElement('a');
+      urlLink.className = 'source-url';
+      urlLink.href = r.url;
+      urlLink.target = '_blank';
+      urlLink.rel = 'noopener noreferrer';
+      urlLink.textContent = r.url;
+      item.appendChild(urlLink);
+
+      if (r.description) {
+        var desc = document.createElement('div');
+        desc.className = 'source-desc';
+        desc.textContent = r.description;
+        item.appendChild(desc);
+      }
+
+      sourcesList.appendChild(item);
+    });
+    sourcesOverlay.classList.add('open');
+  }
+
+  function closeSourcesPopup() {
+    sourcesOverlay.classList.remove('open');
   }
 
   // ── Image Attachment ──
@@ -1063,6 +1160,12 @@
     webSearchEnabled = !webSearchEnabled;
     webSearchToggle.classList.toggle('active', webSearchEnabled);
     localStorage.setItem(STORAGE_KEYS.webSearchEnabled, webSearchEnabled);
+  });
+
+  sourcesPill.addEventListener('click', openSourcesPopup);
+  sourcesClose.addEventListener('click', closeSourcesPopup);
+  sourcesOverlay.addEventListener('click', function (e) {
+    if (e.target === sourcesOverlay) closeSourcesPopup();
   });
 
   configToggle.addEventListener('click', openSettings);
