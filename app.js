@@ -59,6 +59,10 @@
   const sourcesClose = document.getElementById('sourcesClose');
   const sourcesList = document.getElementById('sourcesList');
   const modelPillWrapper = document.getElementById('modelPillWrapper');
+  const skillsBtn = document.getElementById('skillsBtn');
+  const skillsOverlay = document.getElementById('skillsOverlay');
+  const skillsClose = document.getElementById('skillsClose');
+  const skillsList = document.getElementById('skillsList');
   const modelPill = document.getElementById('modelPill');
   const modelPillText = document.getElementById('modelPillText');
   const modelDropdownMenu = document.getElementById('modelDropdownMenu');
@@ -73,8 +77,19 @@
     systemPrompt: 'chat_system_prompt',
     apiKey: 'chat_api_key',
     braveApiKey: 'chat_brave_api_key',
-    webSearchEnabled: 'chat_web_search_enabled'
+    webSearchEnabled: 'chat_web_search_enabled',
+    skills: 'chat_skills'
   };
+
+  // ── Skills Registry ──
+  var SKILLS_REGISTRY = [
+    {
+      id: 'frontend-design',
+      name: 'Frontend Design',
+      description: 'Create distinctive, production-grade frontend interfaces with high design quality.',
+      url: 'https://raw.githubusercontent.com/anthropics/skills/refs/heads/main/skills/frontend-design/SKILL.md'
+    }
+  ];
 
   // ── State ──
   let conversation = [];
@@ -84,6 +99,8 @@
   let attachedImage = null;
   let webSearchEnabled = false;
   let currentSearchResults = [];
+  let skillsState = {}; // { skillId: { content, enabled } }
+  let savedSkillIds = {}; // { skillId: true/false }
 
   // ── SVG Icons (reusable) ──
   const ARROW_SVG = '<polyline points="9 18 15 12 9 6"/>';
@@ -951,8 +968,16 @@
   function clearChat() {
     conversation = [];
     var prompt = systemPromptInput.value.trim();
+    var skillsContent = getEnabledSkillsContent();
+    var fullSystemPrompt = [];
+    if (skillsContent) {
+      fullSystemPrompt.push(skillsContent);
+    }
     if (prompt) {
-      conversation.push({ role: 'system', content: prompt });
+      fullSystemPrompt.push(prompt);
+    }
+    if (fullSystemPrompt.length > 0) {
+      conversation.push({ role: 'system', content: fullSystemPrompt.join('\n\n---\n\n') });
       localStorage.setItem(STORAGE_KEYS.systemPrompt, prompt);
     }
     messagesEl.innerHTML = '';
@@ -1081,6 +1106,164 @@
     sourcesOverlay.classList.remove('open');
   }
 
+  // ── Skills Modal ──
+  function openSkills() {
+    skillsOverlay.classList.add('open');
+  }
+
+  function closeSkills() {
+    skillsOverlay.classList.remove('open');
+  }
+
+  function handleSkillsEscape(e) {
+    if (e.key === 'Escape' && skillsOverlay.classList.contains('open')) {
+      closeSkills();
+    }
+  }
+
+  function handleSkillsBackdropClick(e) {
+    if (e.target === skillsOverlay) {
+      closeSkills();
+    }
+  }
+
+  // ── Skills Management ──
+  function initSkills() {
+    // Load saved enabled states
+    var savedSkills = localStorage.getItem(STORAGE_KEYS.skills);
+    if (savedSkills) {
+      try {
+        savedSkillIds = JSON.parse(savedSkills);
+      } catch (e) { /* ignore */ }
+    }
+
+    // Initialize skillsState from registry and saved state
+    SKILLS_REGISTRY.forEach(function (skill) {
+      if (!skillsState[skill.id]) {
+        skillsState[skill.id] = {
+          content: '',
+          enabled: savedSkillIds[skill.id] === true
+        };
+      }
+    });
+
+    // Fetch all skills
+    fetchAllSkills();
+
+    // Render skills list
+    renderSkillsList();
+  }
+
+  function fetchAllSkills() {
+    SKILLS_REGISTRY.forEach(function (skill) {
+      fetch(skill.url)
+        .then(function (res) {
+          if (!res.ok) throw new Error('Failed to fetch');
+          return res.text();
+        })
+        .then(function (content) {
+          // Extract description from YAML frontmatter if present
+          var desc = skill.description;
+          var body = content;
+          var yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+          if (yamlMatch) {
+            var yamlText = yamlMatch[1];
+            var descMatch = yamlText.match(/description:\s*(.+?)\n/);
+            if (descMatch) {
+              desc = descMatch[1].trim();
+            }
+            // Get content after frontmatter
+            var parts = content.split(/---\n[\s\S]*?---/);
+            if (parts.length > 2) {
+              body = parts.slice(2).join('---').trim();
+            } else {
+              body = content.replace(/^---\n[\s\S]*?---\n?/, '').trim();
+            }
+          }
+          skillsState[skill.id].content = body;
+          skillsState[skill.id].description = desc;
+          renderSkillsList();
+        })
+        .catch(function () {
+          renderSkillsList();
+        });
+    });
+  }
+
+  function saveSkillsState() {
+    var enabledMap = {};
+    Object.keys(skillsState).forEach(function (id) {
+      enabledMap[id] = skillsState[id].enabled;
+    });
+    localStorage.setItem(STORAGE_KEYS.skills, JSON.stringify(enabledMap));
+    savedSkillIds = enabledMap;
+  }
+
+  function getEnabledSkillsContent() {
+    var parts = [];
+    Object.keys(skillsState).forEach(function (id) {
+      if (skillsState[id].enabled && skillsState[id].content) {
+        parts.push(skillsState[id].content);
+      }
+    });
+    return parts.join('\n\n---\n\n');
+  }
+
+  function renderSkillsList() {
+    skillsList.innerHTML = '';
+
+    SKILLS_REGISTRY.forEach(function (skill) {
+      var state = skillsState[skill.id];
+      if (!state) return;
+
+      var item = document.createElement('div');
+      item.className = 'skill-item';
+
+      var info = document.createElement('div');
+      info.className = 'skill-info';
+
+      var name = document.createElement('div');
+      name.className = 'skill-name';
+      name.textContent = skill.name;
+
+      var desc = document.createElement('div');
+      desc.className = 'skill-desc';
+      desc.textContent = state.description || skill.description;
+
+      info.appendChild(name);
+      info.appendChild(desc);
+
+      var toggle = document.createElement('label');
+      toggle.className = 'skill-toggle';
+
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = state.enabled;
+      checkbox.setAttribute('data-skill-id', skill.id);
+
+      var slider = document.createElement('span');
+      slider.className = 'skill-toggle-slider';
+
+      toggle.appendChild(checkbox);
+      toggle.appendChild(slider);
+
+      item.appendChild(info);
+      item.appendChild(toggle);
+      skillsList.appendChild(item);
+    });
+
+    // Bind toggle events
+    skillsList.querySelectorAll('.skill-toggle input').forEach(function (input) {
+      input.addEventListener('change', function (e) {
+        var skillId = e.target.getAttribute('data-skill-id');
+        if (skillsState[skillId]) {
+          skillsState[skillId].enabled = e.target.checked;
+          saveSkillsState();
+        }
+      });
+    });
+  }
+
   // ── Image Attachment ──
   function fileToBase64(file) {
     return new Promise(function (resolve, reject) {
@@ -1174,6 +1357,10 @@
   document.addEventListener('keydown', handleSettingsEscape);
   fetchModelsBtn.addEventListener('click', function () { checkConnection(); });
   clearBtn.addEventListener('click', clearChat);
+  skillsBtn.addEventListener('click', openSkills);
+  skillsClose.addEventListener('click', closeSkills);
+  skillsOverlay.addEventListener('click', handleSkillsBackdropClick);
+  document.addEventListener('keydown', handleSkillsEscape);
   modelPill.addEventListener('click', handleModelPillToggle);
   modelDropdownMenu.addEventListener('click', handleModelSelect);
   document.addEventListener('click', handleModelDropdownOutsideClick);
@@ -1269,10 +1456,19 @@
   // ── Initialization ──
   initTheme();
   loadSavedConfig();
+  initSkills();
   updateModelPill(modelSelect.value);
   var savedPrompt = localStorage.getItem(STORAGE_KEYS.systemPrompt);
+  var fullSystemPrompt = [];
+  var skillsContent = getEnabledSkillsContent();
+  if (skillsContent) {
+    fullSystemPrompt.push(skillsContent);
+  }
   if (savedPrompt) {
-    conversation.push({ role: 'system', content: savedPrompt });
+    fullSystemPrompt.push(savedPrompt);
+  }
+  if (fullSystemPrompt.length > 0) {
+    conversation.push({ role: 'system', content: fullSystemPrompt.join('\n\n---\n\n') });
   }
   createEmptyState();
   checkConnection();
