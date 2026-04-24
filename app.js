@@ -899,8 +899,8 @@
     localStorage.setItem(STORAGE_KEYS.model, model);
 
     var headers = { 'Content-Type': 'application/json' };
-    if (apiKey && apiKey !== 'none') {
-      headers['Authorization'] = 'Bearer ' + apiKey;
+    if (searchApiKey && searchApiKey !== 'none') {
+      headers['Authorization'] = 'Bearer ' + searchApiKey;
     }
 
     abortController = new AbortController();
