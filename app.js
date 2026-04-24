@@ -1247,9 +1247,26 @@
           var yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
           if (yamlMatch) {
             var yamlText = yamlMatch[1];
-            var descMatch = yamlText.match(/description:\s*(.+?)\n/);
+            // Extract description, handling single-line and multi-line YAML block scalars
+            var descMatch = yamlText.match(/^description:\s*(.+)$/m);
             if (descMatch) {
-              desc = descMatch[1].trim();
+              var val = descMatch[1];
+              if (val.startsWith('>')) {
+                // Folded block scalar: capture all indented lines, join with spaces
+                var block = yamlText.match(/^description:\s*>\s*\n((?:[ ]+.+\n?)*)/m);
+                if (block) {
+                  desc = block[1].replace(/\n\s*/g, ' ').trim();
+                }
+              } else if (val.startsWith('|')) {
+                // Literal block scalar: capture all indented lines, preserve newlines
+                var block = yamlText.match(/^description:\s*\|\s*\n((?:[ ]+.+\n?)*)/m);
+                if (block) {
+                  desc = block[1].replace(/\n\s*$/g, '').replace(/\n/g, '\n').trim();
+                }
+              } else {
+                // Single-line description
+                desc = val.trim();
+              }
             }
             // Get content after frontmatter
             var parts = content.split(/---\n[\s\S]*?---/);
