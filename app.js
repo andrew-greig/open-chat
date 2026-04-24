@@ -88,6 +88,12 @@
       name: 'Frontend Design',
       description: 'Create distinctive, production-grade frontend interfaces with high design quality.',
       url: 'https://raw.githubusercontent.com/anthropics/skills/refs/heads/main/skills/frontend-design/SKILL.md'
+    },
+    {
+      id: 'clarify-first',
+      name: 'Clarify First',
+      description: 'Asks clarifying questions before producing output when a request is vague or under-specified.',
+      url: './skills/clarify-first/SKILL.md'
     }
   ];
 
