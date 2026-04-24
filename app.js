@@ -94,6 +94,12 @@
       name: 'Clarify First',
       description: 'Asks clarifying questions before producing output when a request is vague or under-specified.',
       url: 'https://raw.githubusercontent.com/andrew-greig/open-chat/refs/heads/main/skills/clarify-first/SKILL.md'
+    },
+    {
+      id: 'caveman',
+      name: 'Caveman',
+      description: 'Ultra-compressed caveman-style communication. Cuts token usage ~75% while keeping full technical accuracy.',
+      url: 'https://raw.githubusercontent.com/JuliusBrussee/caveman/refs/heads/main/skills/caveman/SKILL.md'
     }
   ];
 
