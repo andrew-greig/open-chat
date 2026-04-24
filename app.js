@@ -93,7 +93,7 @@
       id: 'clarify-first',
       name: 'Clarify First',
       description: 'Asks clarifying questions before producing output when a request is vague or under-specified.',
-      url: './skills/clarify-first/SKILL.md'
+      url: 'https://raw.githubusercontent.com/andrew-greig/open-chat/refs/heads/main/skills/clarify-first/SKILL.md'
     }
   ];
 
