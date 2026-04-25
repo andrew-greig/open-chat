@@ -53,6 +53,7 @@
   const braveApiKeyInput = document.getElementById('braveApiKey');
   const webSearchToggle = document.getElementById('webSearchToggle');
   const webSearchLoading = document.getElementById('webSearchLoading');
+  const urlFetchLoading = document.getElementById('urlFetchLoading');
   const sourcesPill = document.getElementById('sourcesPill');
   const sourcesPillFavicons = document.getElementById('sourcesPillFavicons');
   const sourcesOverlay = document.getElementById('sourcesOverlay');
@@ -884,6 +885,16 @@
       conversation.push({ role: 'user', content: text });
     }
 
+    var urlResults = [];
+    var urls = extractUrls(text);
+    if (urls.length > 0) {
+      urlFetchLoading.style.display = 'flex';
+      sendBtn.disabled = true;
+      urlResults = await fetchUrls(urls);
+      urlFetchLoading.style.display = 'none';
+      sendBtn.disabled = false;
+    }
+
     if (webSearchEnabled && text) {
       webSearchLoading.style.display = 'flex';
       sendBtn.disabled = true;
@@ -894,8 +905,16 @@
       if (currentSearchResults.length > 0) {
         renderSourcesPill(currentSearchResults);
       }
-      var augmentedPrompt = 'Context from web search:\n\n' + searchResult.formatted + '\n\nUser query: ' + text;
-      conversation[conversation.length - 1].content = augmentedPrompt;
+    }
+
+    // Build augmented prompt with URL fetch results
+    if (urlResults.length > 0) {
+      var fetchedContent = formatFetchedUrls(urlResults);
+      if (fetchedContent) {
+        var basePrompt = conversation[conversation.length - 1].content;
+        var augmentedPrompt = 'Context from fetched pages:\n\n' + fetchedContent + '\n\n---\n\n' + basePrompt;
+        conversation[conversation.length - 1].content = augmentedPrompt;
+      }
     }
 
     var server = normalizeServerUrl(serverUrlInput.value);
@@ -1100,6 +1119,72 @@
     } catch (e) {
       return { formatted: 'Web search error: ' + e.message, results: [] };
     }
+  }
+
+  // ── URL Detection & Fetching ──
+  var URL_REGEX = /https?:\/\/[^\s<"')\],;]+/gi;
+  var MAX_URLS_TO_FETCH = 3;
+  var MAX_TEXT_LENGTH = 4000;
+
+  function extractUrls(text) {
+    var matches = text.match(URL_REGEX) || [];
+    // Deduplicate while preserving order
+    var seen = {};
+    var unique = [];
+    for (var i = 0; i < matches.length; i++) {
+      var url = matches[i].replace(/[.,;:!?)]+$/, ''); // strip trailing punctuation
+      if (!seen[url]) {
+        seen[url] = true;
+        unique.push(url);
+      }
+    }
+    return unique.slice(0, MAX_URLS_TO_FETCH);
+  }
+
+  async function fetchSingleUrl(url) {
+    try {
+      var res = await fetch('/api/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url })
+      });
+      var data = await res.json();
+      if (!res.ok || data.error) {
+        return { url: url, title: null, text: null, error: data.error || 'Fetch failed' };
+      }
+      var truncated = data.truncated;
+      var text = truncated ? data.text.substring(0, MAX_TEXT_LENGTH) + '\n\n... [truncated]' : data.text;
+      return {
+        url: url,
+        title: data.title || new URL(url).hostname,
+        text: text,
+        error: null
+      };
+    } catch (e) {
+      return { url: url, title: null, text: null, error: e.message };
+    }
+  }
+
+  async function fetchUrls(urls) {
+    if (!urls || urls.length === 0) return [];
+    var results = [];
+    for (var i = 0; i < urls.length; i++) {
+      var result = await fetchSingleUrl(urls[i]);
+      results.push(result);
+    }
+    return results;
+  }
+
+  function formatFetchedUrls(results) {
+    var parts = [];
+    results.forEach(function (r) {
+      if (r.error) {
+        parts.push('[Failed to fetch: ' + r.url + ' - ' + r.error + ']');
+      } else if (r.text) {
+        parts.push('Page: ' + r.title + ' (' + r.url + ')\n' + r.text);
+      }
+    });
+    return parts.join('\n\n---\n\n');
   }
 
   // ── Sources Display ──
