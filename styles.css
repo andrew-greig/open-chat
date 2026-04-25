@@ -60,6 +60,42 @@
   --success: #10A37F;
 }
 
+[data-theme="rose-pine"] {
+  --bg: #191724;
+  --bg-raised: #1f1d2e;
+  --bg-elevated: #26233a;
+  --border: #6e6a86;
+  --text: #e0def4;
+  --text-dim: #908caa;
+  --text-muted: #5e5a74;
+  --accent: #c4a7e7;
+  --accent-dim: #a89bc8;
+  --user-bg: #c4a7e7;
+  --user-text: #191724;
+  --assistant-bg: #1f1d2e;
+  --assistant-text: #e0def4;
+  --danger: #ff6e96;
+  --success: #31e1b7;
+}
+
+[data-theme="polar-light"] {
+  --bg: #fafafa;
+  --bg-raised: #f0f0f0;
+  --bg-elevated: #e8e8e8;
+  --border: #d0d0d0;
+  --text: #282a36;
+  --text-dim: #6a6d7e;
+  --text-muted: #9a9dae;
+  --accent: #2d7ff9;
+  --accent-dim: #1a6de0;
+  --user-bg: #2d7ff9;
+  --user-text: #ffffff;
+  --assistant-bg: #f0f0f0;
+  --assistant-text: #282a36;
+  --danger: #ff5555;
+  --success: #50fa7b;
+}
+
 body {
   font-family: 'DM Sans', sans-serif;
   font-weight: 400;
@@ -394,6 +430,14 @@ body::before {
 
 .theme-swatch.chatgpt {
   background: #10A37F;
+}
+
+.theme-swatch.rose-pine {
+  background: #c4a7e7;
+}
+
+.theme-swatch.polar-light {
+  background: #2d7ff9;
 }
 
 
