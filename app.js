@@ -1562,6 +1562,24 @@
   fileInput.addEventListener('change', handleFileSelect);
   imageRemoveBtn.addEventListener('click', handleImageRemove);
 
+  // ── Paste Image from Clipboard ──
+  document.addEventListener('paste', function (e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        e.preventDefault();
+        var file = items[i].getAsFile();
+        if (!file) continue;
+        fileToBase64(file).then(function (base64) {
+          showImagePreview(file, base64);
+        });
+        break;
+      }
+    }
+  });
+
   // ── Drag & Drop ──
   var dropZones = [messagesEl, document.querySelector('.input-wrapper')];
   var dragCounter = 0;
