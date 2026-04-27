@@ -45,9 +45,8 @@
   const attachBtn = document.getElementById('attachBtn');
   const fileInput = document.getElementById('fileInput');
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-  const imagePreview = document.getElementById('imagePreview');
-  const imageFilename = document.getElementById('imageFilename');
-  const imageRemoveBtn = document.getElementById('imageRemoveBtn');
+  const imagePreviewGallery = document.getElementById('imagePreviewGallery');
+  const imageAddMoreBtn = document.getElementById('imageAddMoreBtn');
   const systemPromptInput = document.getElementById('systemPrompt');
   const apiKeyInput = document.getElementById('apiKey');
   const braveApiKeyInput = document.getElementById('braveApiKey');
@@ -109,7 +108,7 @@
   let streaming = false;
   let abortController = null;
   let codeBlocks = [];
-  let attachedImage = null;
+  let attachedImages = [];
   let webSearchEnabled = false;
   let currentSearchResults = [];
   let skillsState = {}; // { skillId: { content, enabled } }
@@ -397,7 +396,7 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  function addMsgWithImage(role, text, imageBase64) {
+  function addMsgWithImages(role, text, images) {
     hideEmpty();
     var wrapper = document.createElement('div');
     wrapper.className = 'msg ' + role;
@@ -422,10 +421,12 @@
       content.appendChild(textP);
     }
 
-    var img = document.createElement('img');
-    img.src = imageBase64;
-    img.style = 'max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:8px;display:block;';
-    content.appendChild(img);
+    images.forEach(function (imgBase64) {
+      var img = document.createElement('img');
+      img.src = imgBase64;
+      img.style = 'max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:8px;display:block;';
+      content.appendChild(img);
+    });
 
     body.appendChild(roleLabel);
     body.appendChild(content);
@@ -863,22 +864,24 @@
   async function send() {
     var text = userInput.value.trim();
     if (streaming) return;
-    if (!text && !attachedImage) return;
+    if (!text && attachedImages.length === 0) return;
 
     userInput.value = '';
     autoResizeTextarea();
 
-    var imageBase64 = attachedImage ? attachedImage.base64 : null;
-    clearAttachedImage();
+    var imageBase64s = attachedImages.map(function (img) { return img.base64; });
+    clearAllImages();
 
     var userContent = text;
-    if (imageBase64) {
+    if (imageBase64s.length > 0) {
       var imageContent = [];
       if (text) {
         imageContent.push({ type: 'text', text: text });
       }
-      imageContent.push({ type: 'image_url', image_url: { url: imageBase64 } });
-      addMsgWithImage('user', text, imageBase64);
+      imageBase64s.forEach(function (base64) {
+        imageContent.push({ type: 'image_url', image_url: { url: base64 } });
+      });
+      addMsgWithImages('user', text, imageBase64s);
       conversation.push({ role: 'user', content: imageContent });
     } else {
       addMsg('user', text);
@@ -1059,7 +1062,7 @@
   }
 
   function updateSendBtn() {
-    sendBtn.disabled = (!userInput.value.trim() && !attachedImage) || streaming;
+    sendBtn.disabled = (!userInput.value.trim() && attachedImages.length === 0) || streaming;
   }
 
   // ── Clear Chat ──
@@ -1080,7 +1083,7 @@
     }
     messagesEl.innerHTML = '';
     createEmptyState();
-    clearAttachedImage();
+    clearAllImages();
     hideSourcesPill();
   }
 
@@ -1455,19 +1458,49 @@
     });
   }
 
-  function showImagePreview(file, base64) {
-    attachedImage = { file: file, base64: base64 };
-    imagePreview.src = base64;
-    imageFilename.textContent = file.name;
-    imagePreviewContainer.classList.add('visible');
-    document.querySelector('.input-area').classList.add('has-preview');
+  function addImagePreview(file, base64) {
+    var id = 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    attachedImages.push({ id: id, file: file, base64: base64 });
+    renderImageGallery();
   }
 
-  function clearAttachedImage() {
-    attachedImage = null;
+  function renderImageGallery() {
+    imagePreviewGallery.innerHTML = '';
+    attachedImages.forEach(function (img) {
+      var thumb = document.createElement('div');
+      thumb.className = 'image-preview-thumb';
+      thumb.setAttribute('data-id', img.id);
+
+      var imgEl = document.createElement('img');
+      imgEl.src = img.base64;
+      imgEl.alt = img.file.name;
+
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'image-preview-thumb-remove';
+      removeBtn.setAttribute('title', 'Remove');
+      removeBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      removeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        removeImageById(img.id);
+      });
+
+      thumb.appendChild(imgEl);
+      thumb.appendChild(removeBtn);
+      imagePreviewGallery.appendChild(thumb);
+    });
+    imagePreviewContainer.classList.toggle('visible', attachedImages.length > 0);
+    document.querySelector('.input-area').classList.toggle('has-preview', attachedImages.length > 0);
+  }
+
+  function removeImageById(id) {
+    attachedImages = attachedImages.filter(function (img) { return img.id !== id; });
+    renderImageGallery();
+  }
+
+  function clearAllImages() {
+    attachedImages = [];
     fileInput.value = '';
-    imagePreviewContainer.classList.remove('visible');
-    document.querySelector('.input-area').classList.remove('has-preview');
+    renderImageGallery();
   }
 
   function handleAttachClick() {
@@ -1475,18 +1508,27 @@
   }
 
   function handleFileSelect(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      return;
-    }
-    fileToBase64(file).then(function (base64) {
-      showImagePreview(file, base64);
+    var files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    var remaining = Array.from(files).filter(function (file) {
+      return file.type.startsWith('image/');
     });
+
+    Promise.all(remaining.map(function (file) {
+      return fileToBase64(file);
+    })).then(function (base64s) {
+      remaining.forEach(function (file, i) {
+        addImagePreview(file, base64s[i]);
+      });
+    });
+
+    // Reset so selecting the same file again triggers change
+    fileInput.value = '';
   }
 
   function handleImageRemove() {
-    clearAttachedImage();
+    clearAllImages();
   }
 
   // ── Event Bindings ──
@@ -1560,24 +1602,31 @@
 
   attachBtn.addEventListener('click', handleAttachClick);
   fileInput.addEventListener('change', handleFileSelect);
-  imageRemoveBtn.addEventListener('click', handleImageRemove);
+  imageAddMoreBtn.addEventListener('click', handleAttachClick);
 
   // ── Paste Image from Clipboard ──
   document.addEventListener('paste', function (e) {
     var items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
 
+    var imageFiles = [];
     for (var i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
         var file = items[i].getAsFile();
-        if (!file) continue;
-        fileToBase64(file).then(function (base64) {
-          showImagePreview(file, base64);
-        });
-        break;
+        if (file) imageFiles.push(file);
       }
     }
+
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+
+    Promise.all(imageFiles.map(function (file) {
+      return fileToBase64(file);
+    })).then(function (base64s) {
+      imageFiles.forEach(function (file, i) {
+        addImagePreview(file, base64s[i]);
+      });
+    });
   });
 
   // ── Drag & Drop ──
@@ -1611,11 +1660,18 @@
     var files = e.dataTransfer.files;
     if (!files.length) return;
 
-    var file = files[0];
-    if (!file.type.startsWith('image/')) return;
+    var imageFiles = Array.from(files).filter(function (file) {
+      return file.type.startsWith('image/');
+    });
 
-    fileToBase64(file).then(function (base64) {
-      showImagePreview(file, base64);
+    if (imageFiles.length === 0) return;
+
+    Promise.all(imageFiles.map(function (file) {
+      return fileToBase64(file);
+    })).then(function (base64s) {
+      imageFiles.forEach(function (file, i) {
+        addImagePreview(file, base64s[i]);
+      });
     });
   }
 

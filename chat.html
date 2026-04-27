@@ -98,7 +98,7 @@
   <!-- Input -->
   <div class="input-area">
     <div class="input-wrapper">
-      <input type="file" id="fileInput" accept="image/*" hidden>
+      <input type="file" id="fileInput" accept="image/*" multiple hidden>
       <button class="attach-btn" id="attachBtn" title="Attach image">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -137,17 +137,12 @@
       <div class="sources-pill-favicons" id="sourcesPillFavicons"></div>
     </div>
     <div class="image-preview-container" id="imagePreviewContainer">
-      <div class="image-preview-wrapper">
-        <img class="image-preview" id="imagePreview" src="" alt="Preview">
-        <div class="image-preview-actions">
-          <span class="image-filename" id="imageFilename"></span>
-          <button class="image-remove-btn" id="imageRemoveBtn" title="Remove image">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      </div>
+      <div class="image-preview-gallery" id="imagePreviewGallery"></div>
+      <button class="image-add-more-btn" id="imageAddMoreBtn" title="Add more images">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
     </div>
   </div>
 </div>
